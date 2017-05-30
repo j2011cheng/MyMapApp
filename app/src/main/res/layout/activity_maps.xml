@@ -13,7 +13,7 @@
         android:layout_height="wrap_content"
         android:text="Current Location"
         android:id="@+id/btn_currentLoc"
-        android:onClick="toCurrentLoc" />
+        android:onClick="getLocation" />
 
     <fragment xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:map="http://schemas.android.com/apk/res-auto"
