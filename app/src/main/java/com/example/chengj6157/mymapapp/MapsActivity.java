@@ -7,6 +7,7 @@ import android.graphics.Color;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.location.LocationProvider;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
@@ -16,6 +17,7 @@ import android.view.View;
 import android.widget.Toast;
 
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.games.achievement.LoadAchievementsResponse;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
@@ -27,6 +29,8 @@ import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
 
+import static android.location.LocationManager.NETWORK_PROVIDER;
+
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
 
     private GoogleMap mMap;
@@ -36,8 +40,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private boolean canGetLocation = false;
     private static final long MIN_TIME_BW_UPDATES = 1000 * 15;
     private static final float MIN_DISTANCE_CHANGE_FOR_UPDATES = 5.0f;
-    private Location currentLoc;
-    private static final float MY_LOC_ZOOM_FACTOR = 17.0f;
+    private Location current;
+    private static final float MY_LOC_ZOOM_FACTOR = 19.0f;
 
 
     @Override
@@ -70,11 +74,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mMap.moveCamera(CameraUpdateFactory.newLatLng(birth));
 
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            Log.d("MyMapApp", "Fine Location Permission Failed");
+            Log.d("MyMapApp", "onMapReady: ERROR Fine Location Permission Failed");
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 2);
         }
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            Log.d("MyMapApp", "Course Location Permission Failed");
+            Log.d("MyMapApp", "onMapReady: ERROR Course Location Permission Failed");
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_COARSE_LOCATION}, 2);
         }
         mMap.setMyLocationEnabled(true);
@@ -84,24 +88,29 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         try {
             Log.d("MyMapApp", "getLocation: method called");
             locationManager = (LocationManager) getSystemService(LOCATION_SERVICE);
+            if(locationManager == null){
+                Log.d("MyMapApp", "getLocation: ERROR locationManager is null");
+            }
 
             isGPSenabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);
             if (isGPSenabled) Log.d("MyMapApp", "getLocation: GPS is enabled");
+            else Log.d("MyMapApp", "getLocation: ERROR GPS not enabled");
 
-            isNetworkEnabled = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
+            isNetworkEnabled = locationManager.isProviderEnabled(NETWORK_PROVIDER);
             if (isNetworkEnabled) Log.d("MyMapApp", "getLocation: Network is enabled");
+            else  Log.d("MyMapApp", "getLocation: ERROR Network not enabled");
 
             if (!isGPSenabled && !isNetworkEnabled) {
-                Log.d("MyMapApp", "getLocation: No Provider is enabled");
+                Log.d("MyMapApp", "getLocation: ERROR No Provider is enabled");
             } else {
                 canGetLocation = true;
                 if (isGPSenabled) {
                     if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                        Log.d("MyMapApp", "Fine Location Permission Failed");
+                        Log.d("MyMapApp", "getLocation: ERROR Fine Location Permission Failed");
                         ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 2);
                     }
                     if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                        Log.d("MyMapApp", "Course Location Permission Failed");
+                        Log.d("MyMapApp", "getLocation: ERROR Course Location Permission Failed");
                         ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_COARSE_LOCATION}, 2);
                     }
                     Log.d("MyMapApp", "getLocation: GPS enabled - requesting location updates");
@@ -114,7 +123,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 }
                 if (isNetworkEnabled) {
                     Log.d("MyMapApp", "getLocation: Network enabled - requesting location updates");
-                    locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,
+                    locationManager.requestLocationUpdates(NETWORK_PROVIDER,
                             MIN_TIME_BW_UPDATES,
                             MIN_DISTANCE_CHANGE_FOR_UPDATES,
                             locationListenerGps);
@@ -130,28 +139,48 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     public void dropMarker(String provider){
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            Log.d("MyMapApp", "Fine Location Permission Failed");
+            Log.d("MyMapApp", "dropMarker: ERROR Fine Location Permission Failed");
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 2);
         }
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            Log.d("MyMapApp", "Course Location Permission Failed");
+            Log.d("MyMapApp", "dropMarker: ERROR Course Location Permission Failed");
             ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.ACCESS_COARSE_LOCATION}, 2);
         }
 
-        if(locationManager.getLastKnownLocation(provider) == null){
-            Log.d("MyMapApp", "dropMarker: location = null");
+        if(locationManager != null) {
+            Log.d("MyMapApp", "dropMarker: locationManager != null");
+            if(locationManager.getLastKnownLocation(provider) == null){
+                Log.d("MyMapApp", "dropMarker: ERROR locationManager.getLastKnownLocation = null");
+            }
+            current = locationManager.getLastKnownLocation(provider);
+        }
+        else{
+            Log.d("MyMapApp", "dropMarker: ERROR locationManager = null");
+        }
+
+        if(current == null){
+            Log.d("MyMapApp", "dropMarker: ERROR current = null");
         }
         else {
             Log.d("MyMapApp", "dropMarker: finding last known location");
-            LatLng currentLoc = new LatLng(locationManager.getLastKnownLocation(provider).getLatitude(), locationManager.getLastKnownLocation(provider).getLongitude());
+            LatLng currentLoc = new LatLng(current.getLatitude(), current.getLongitude());
             Log.d("MyMapApp", "dropMarker: updating camera");
             CameraUpdate update = CameraUpdateFactory.newLatLngZoom(currentLoc, MY_LOC_ZOOM_FACTOR);
             Log.d("MyMapApp", "dropMarker: creating circle");
-            Circle circle = mMap.addCircle(new CircleOptions().center(currentLoc).radius(2).strokeColor(Color.BLUE).strokeWidth(1).fillColor(Color.WHITE));
+            if(provider.equals(LocationManager.GPS_PROVIDER)) {
+                Log.d("MyMapApp", "dropMarker: using GPS");
+                Circle circle = mMap.addCircle(new CircleOptions().center(currentLoc).radius(1).strokeColor(Color.GREEN).strokeWidth(2).fillColor(Color.WHITE));
+            }
+            if(provider.equals(LocationManager.NETWORK_PROVIDER)) {
+                Log.d("MyMapApp", "dropMarker: using network");
+                Circle circle = mMap.addCircle(new CircleOptions().center(currentLoc).radius(1).strokeColor(Color.BLUE).strokeWidth(2).fillColor(Color.WHITE));
+            }
+            Log.d("MyMapApp", "dropMarker: animating camera");
+            mMap.animateCamera(update);
         }
     }
 
-    LocationListener locationListenerGps = new LocationListener() {
+    LocationListener locationListenerGps = new android.location.LocationListener() {
 
         @Override
         public void onLocationChanged(Location location) {
@@ -160,16 +189,30 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             //drop marker on map (dropMarker)
             dropMarker(LocationManager.GPS_PROVIDER);
             //disable network updates (LocationManager)
-
+            isNetworkEnabled = false;
         }
 
         @Override
         public void onStatusChanged(String provider, int status, Bundle extras) {
             //setup switch statement
-            //case: LocationProvider.AVAILABLE output to Log.d or Toast
-            //case: LocationProvider.OUT_OF_SERVICE request updates from NETWORK_PROVIDER
-            //case: LocationProvider.TEMPORARILY_UNAVAILABLE request update from NETWORK_PROVIDER
-            //case: default request updates from NETWORK_PROVIDER
+            switch (status) {
+                //case: LocationProvider.AVAILABLE output to Log.d or Toast
+                case LocationProvider.AVAILABLE:
+                    Log.d("MyMapApp", "locationListenerGps: LocationProvider available");
+                    break;
+                    //case: LocationProvider.OUT_OF_SERVICE request updates from NETWORK_PROVIDER
+                case LocationProvider.OUT_OF_SERVICE:
+                    isNetworkEnabled = true;
+                    break;
+                    //case: LocationProvider.TEMPORARILY_UNAVAILABLE request update from NETWORK_PROVIDER
+                case LocationProvider.TEMPORARILY_UNAVAILABLE:
+                    isNetworkEnabled = true;
+                    break;
+                    //case: default request updates from NETWORK_PROVIDER
+                default:
+                    isNetworkEnabled = true;
+                    break;
+            }
         }
 
         @Override
@@ -179,19 +222,21 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         public void onProviderDisabled(String provider) {}
     };
 
-    LocationListener locationListenerNetwork = new LocationListener() {
+    LocationListener locationListenerNetwork = new android.location.LocationListener() {
         @Override
         public void onLocationChanged(Location location) {
             //output Log.d and Toast
-
+            Log.d("MyMapApp", "locationListenerNetwork: onLocationChanged");
             //drop market on map (dropMarker)
-
+            dropMarker(LocationManager.NETWORK_PROVIDER);
             //relaunch request for network location update
+            isNetworkEnabled = true;
         }
 
         @Override
         public void onStatusChanged(String provider, int status, Bundle extras) {
             //output Log.d or Toast
+            Log.d("MyMapApp", "locationListenerNetwork: onStatusChanged");
         }
 
         @Override
